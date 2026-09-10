@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>普朗克黑体辐射模拟器</title>
+    <style>
+        body {font-family:system-ui; padding:20px; background:#111; color:#fff;}
+        .container {max-width:1000px; margin:0 auto;}
+        canvas {border:1px solid #444; background:#000;}
+        .control {margin:15px 0;}
+        #colorBox {width:120px;height:120px;border-radius:8px;display:inline-block;vertical-align:middle;margin-left:20px;border:2px solid #fff;}
+        input[type="range"]{width:600px;}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>普朗克黑体辐射光谱模拟器</h2>
+    <div class="control">
+        <label>温度 T = <span id="tempVal">3000</span> K</label>
+        <input type="range" id="tempSlider" min="1000" max="12000" value="3000" step="50">
+        <div id="colorBox"></div>
+    </div>
+    <canvas id="specCanvas" width="950" height="450"></canvas>
+</div>
+
+<script>
+// ========== 物理常量 ==========
+const h = 6.62607015e-34;    // 普朗克常量 J·s
+const c = 299792458;         // 光速 m/s
+const kb = 1.380649e-23;     // 玻尔兹曼常量 J/K
+const canvas = document.getElementById('specCanvas');
+const ctx = canvas.getContext('2d');
+const slider = document.getElementById('tempSlider');
+const tempDisplay = document.getElementById('tempVal');
+const colorBox = document.getElementById('colorBox');
+
+// ========== 普朗克公式计算单色辐出度 ==========
+function planck(lambdaM, T) {
+    // lambdaM:波长，单位 m
+    const denom = Math.exp( h*c/(lambdaM*kb*T) ) - 1;
+    const m = (2 * Math.PI * h * c*c) / (lambdaM**5 * denom);
+    return m;
+}
+
+// ========== 色温转RGB（黑体色温转换算法，1000~12000K） ==========
+function temp2rgb(T) {
+    let r,g,b;
+    T = T / 100;
+    if(T <=66){
+        r=255;
+        g = 99.4708*Math.log(T) - 161.1195;
+        g=Math.min(255,Math.max(0,g));
+        if(T<=19){
+            b=0;
+        }else{
+            b=138.5177*Math.log(T-10)-305.0448;
+            b=Math.min(255,Math.max(0,b));
+        }
+    }else{
+        r = 329.6987 * ((T-60)** -0.1332047592);
+        g = 288.1222 * ((T-60)** -0.0755148492);
+        b=255;
+        r=Math.min(255,Math.max(0,r));
+        g=Math.min(255,Math.max(0,g));
+    }
+    return {r:Math.round(r),g:Math.round(g),b:Math.round(b)};
+}
+
+// ========== 绘制光谱曲线 ==========
+function drawSpectrum(T){
+    ctx.fillStyle="#000";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    // 波长范围：380nm ~ 780nm可见光 + 红外紫外扩展，单位转为米
+    const lambdaStart = 380e-9;
+    const lambdaEnd = 780e-9;
+    const points = [];
+    let maxM = 0;
+    // 采样，先找峰值用于归一化
+    for(let i=0;i<800;i++){
+        const lam = lambdaStart + (lambdaEnd-lambdaStart)*i/800;
+        const val = planck(lam, T);
+        points.push(val);
+        if(val>maxM) maxM=val;
+    }
+    // 绘制曲线
+    ctx.beginPath();
+    for(let i=0;i<points.length;i++){
+        const lam = lambdaStart + (lambdaEnd-lambdaStart)*i/800;
+        const x = i / points.length * canvas.width;
+        const y = canvas.height - (points[i]/maxM)*canvas.height*0.9;
+        if(i===0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle="#ffdd44";
+    ctx.lineWidth=2;
+    ctx.stroke();
+    // 绘制坐标轴文字
+    ctx.fillStyle="#aaa";
+    ctx.font="14px sans-serif";
+    ctx.fillText("波长(nm)",canvas.width/2,canvas.height-10);
+    ctx.fillText("380",10,canvas.height-10);
+    ctx.fillText("780",canvas.width-40,canvas.height-10);
+}
+
+// ========== 更新全部UI ==========
+function updateAll(T){
+    tempDisplay.textContent = T;
+    const rgb = temp2rgb(T);
+    colorBox.style.backgroundColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+    drawSpectrum(T);
+}
+
+// 滑块绑定事件
+slider.addEventListener('input',()=>{
+    const T = Number(slider.value);
+    updateAll(T);
+})
+
+// 页面初始化
+updateAll(3000);
+</script>
+</body>
+</html>
